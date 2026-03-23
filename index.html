@@ -13,7 +13,11 @@
     .logo h1 { font-size: 22px; font-weight: 700; color: #AA988A; }
     .logo p  { font-size: 13px; color: #888; margin-top: 6px; }
     .card { background: #fff; border-radius: 16px; padding: 28px 24px; box-shadow: 0 4px 16px rgba(0,0,0,0.07); }
-    .section-title { font-size: 13px; font-weight: 700; color: #AA988A; margin: 24px 0 14px; padding-bottom: 8px; border-bottom: 1.5px solid #f0ebe8; }
+    .section-title {
+      font-size: 13px; font-weight: 700; color: #AA988A;
+      margin: 24px 0 14px; padding-bottom: 8px;
+      border-bottom: 1.5px solid #f0ebe8;
+    }
     .section-title:first-child { margin-top: 0; }
     .form-group { margin-bottom: 18px; }
     label { display: block; font-size: 13px; font-weight: 500; color: #555; margin-bottom: 6px; }
@@ -31,11 +35,15 @@
     .btn {
       width: 100%; padding: 14px; background: #AA988A; color: #fff;
       border: none; border-radius: 10px; font-size: 16px; font-weight: 700;
-      font-family: 'Noto Sans KR', sans-serif; cursor: pointer; margin-top: 8px; transition: background 0.2s;
+      font-family: 'Noto Sans KR', sans-serif; cursor: pointer; margin-top: 8px;
+      transition: background 0.2s;
     }
-    .btn:active { background: #8c7b6e; }
+    .btn:active   { background: #8c7b6e; }
     .btn:disabled { background: #ccc; cursor: default; }
-    .result { display: none; margin-top: 20px; padding: 16px; border-radius: 10px; font-size: 14px; line-height: 1.6; text-align: center; }
+    .result {
+      display: none; margin-top: 20px; padding: 16px;
+      border-radius: 10px; font-size: 14px; line-height: 1.6; text-align: center;
+    }
     .result.success { background: #f0faf0; color: #2d7a2d; }
     .result.error   { background: #fff0f0; color: #c0392b; }
   </style>
@@ -54,6 +62,7 @@
         대표자님께 확인 알림톡이 발송됩니다.
       </div>
 
+      <!-- 대표자 확인 -->
       <div class="section-title">대표자 확인</div>
       <div class="form-group">
         <label>보관함 번호</label>
@@ -65,7 +74,13 @@
         <p class="hint">본인 확인을 위해 대표자 전화번호 끝 4자리를 입력해주세요.</p>
       </div>
 
+      <!-- 초대할 공동사용자 -->
       <div class="section-title">초대할 공동사용자</div>
+      <div class="form-group">
+        <label>공동사용자 이름</label>
+        <input type="text" id="coUserName" placeholder="공동사용자 실명 입력">
+        <p class="hint">알림톡 발송 시 사용됩니다.</p>
+      </div>
       <div class="form-group">
         <label>공동사용자 전화번호</label>
         <input type="tel" id="coUserPhone" placeholder="숫자만 입력 (예: 01012345678)">
@@ -78,50 +93,78 @@
   </div>
 
   <script>
-    const GAS_URL = 'https://script.google.com/macros/s/여기에_배포ID/exec';
+    // ★ 실제 GAS 배포 URL
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzCrBrslP52xT1DlqKUipHS2cT7yoik31owFMIkk9K3aW2lKxQZ9YTAx2tmVF700aBT_g/exec';
 
     function submitInvite() {
       const cabinet     = document.getElementById('cabinet').value.trim().toUpperCase();
       const repPhone4   = document.getElementById('repPhone4').value.trim();
+      const coUserName  = document.getElementById('coUserName').value.trim();
       const coUserPhone = document.getElementById('coUserPhone').value.trim().replace(/[^0-9]/g, '');
 
-      if (!cabinet || !repPhone4 || !coUserPhone) {
-        showResult('모든 항목을 입력해주세요.', false); return;
+      // ── 입력값 검증 ──
+      if (!cabinet) {
+        showResult('보관함 번호를 입력해주세요.', false); return;
       }
-      if (repPhone4.length !== 4) {
+      if (!repPhone4 || repPhone4.length !== 4) {
         showResult('대표자 전화번호 끝 4자리를 정확히 입력해주세요.', false); return;
       }
-      if (coUserPhone.length < 10) {
+      if (!coUserName) {
+        showResult('공동사용자 이름을 입력해주세요.', false); return;
+      }
+      if (!coUserPhone || coUserPhone.length < 10) {
         showResult('공동사용자 전화번호를 정확히 입력해주세요.', false); return;
       }
 
       const btn = document.getElementById('submitBtn');
-      btn.disabled = true;
+      btn.disabled    = true;
       btn.textContent = '발송 중...';
 
+      // ── CORS 우회: Content-Type을 text/plain으로 설정 ──
+      // application/json 헤더는 브라우저 preflight(OPTIONS)를 유발해 CORS 차단됨
+      // GAS는 text/plain body도 e.postData.contents로 정상 수신함
       fetch(GAS_URL, {
-        method: 'POST',
+        method:   'POST',
         redirect: 'follow',
-        body: JSON.stringify({ action: 'inviteCoUser', cabinet, repPhone4, coUserPhone })
+        headers:  { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({
+          action     : 'inviteCoUser',
+          cabinet,
+          repPhone4,
+          coUserName,
+          coUserPhone
+        })
       })
-      .then(res => res.json())
-      .then(data => {
-        btn.disabled = false;
-        btn.textContent = '초대 링크 발송';
-        showResult(data.message, data.success);
+      .then(function(res) {
+        // GAS 응답이 text/html로 올 수도 있으므로 text로 먼저 받은 뒤 JSON 파싱
+        return res.text();
       })
-      .catch(() => {
-        btn.disabled = false;
+      .then(function(text) {
+        btn.disabled    = false;
         btn.textContent = '초대 링크 발송';
-        showResult('오류가 발생했습니다. 다시 시도해주세요.', false);
+        try {
+          const data = JSON.parse(text);
+          showResult(data.message, data.success);
+          if (data.success) btn.disabled = true;  // 성공 후 중복 발송 방지
+        } catch (e) {
+          // JSON 파싱 실패 = GAS가 HTML 반환 (배포 설정 문제)
+          showResult('서버 응답 오류가 발생했습니다. 관리자에게 문의해주세요.', false);
+          console.error('응답 파싱 실패:', text);
+        }
+      })
+      .catch(function(err) {
+        btn.disabled    = false;
+        btn.textContent = '초대 링크 발송';
+        showResult('네트워크 오류가 발생했습니다. 다시 시도해주세요.', false);
+        console.error('fetch 오류:', err);
       });
     }
 
     function showResult(msg, success) {
       const el = document.getElementById('result');
       el.style.display = 'block';
-      el.className = 'result ' + (success ? 'success' : 'error');
-      el.textContent = msg;
+      el.className     = 'result ' + (success ? 'success' : 'error');
+      el.textContent   = msg;
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   </script>
